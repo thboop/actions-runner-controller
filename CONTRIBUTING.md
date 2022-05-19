@@ -10,7 +10,7 @@ The process would look like the below:
 
 - Clone this repository locally
 - Checkout the branch. If you use the `gh` command, run `gh pr checkout $PR_NUMBER`
-- Run `NAME=$DOCKER_USER/actions-runner-controller VERSION=canary make docker-build docker-push` for a custom container image build
+- Run `NAME=$DOCKER_USER/actions-runner-controller VERSION=canary make docker-buildx` for a custom container image build
 - Update your actions-runner-controller's controller-manager deployment to use the new image, `$DOCKER_USER/actions-runner-controller:canary`
 
 Please also note that you need to replace `$DOCKER_USER` with your own DockerHub account name.
@@ -74,7 +74,7 @@ KUBECONFIG=path/to/kubeconfig \
   PRIVATE_KEY_FILE_PATH=path/to/pem/file \
   INSTALLATION_ID=*** \
   ACCEPTANCE_TEST_SECRET_TYPE=token \
-  make docker-build acceptance/setup \
+  make docker-buildx acceptance/setup \
        acceptance/deploy \
        acceptance/tests
 ```
@@ -98,7 +98,7 @@ To make your development cycle faster, use the below command to update deploy an
 # Makefile
 VERSION=controller1 \
   RUNNER_TAG=runner1 \
-  make acceptance/pull acceptance/kind docker-build acceptance/load acceptance/deploy
+  make acceptance/pull acceptance/kind docker-buildx acceptance/load acceptance/deploy
 ```
 
 If you've already deployed actions-runner-controller and only want to recreate pods to use the newer image, you can run:
@@ -106,7 +106,7 @@ If you've already deployed actions-runner-controller and only want to recreate p
 ```shell
 # Makefile
 NAME=$DOCKER_USER/actions-runner-controller \
-  make docker-build acceptance/load && \
+  make docker-buildx acceptance/load && \
   kubectl -n actions-runner-system delete po $(kubectl -n actions-runner-system get po -ojsonpath={.items[*].metadata.name})
 ```
 

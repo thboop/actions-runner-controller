@@ -138,7 +138,7 @@ release/clean:
 	rm -rf release
 
 .PHONY: acceptance
-acceptance: release/clean acceptance/pull docker-build release
+acceptance: release/clean acceptance/pull docker-buildx release
 	ACCEPTANCE_TEST_SECRET_TYPE=token make acceptance/run
 	ACCEPTANCE_TEST_SECRET_TYPE=app make acceptance/run
 	ACCEPTANCE_TEST_DEPLOYMENT_TOOL=helm ACCEPTANCE_TEST_SECRET_TYPE=token make acceptance/run
