@@ -35,7 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/api/rbac/v1beta1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/actions-runner-controller/actions-runner-controller/api/v1alpha1"
@@ -279,7 +279,8 @@ func (r *RunnerReconciler) processRunnerCreation(ctx context.Context, runner v1a
 	if runner.Spec.ContainerMode == "kubernetes" && runner.Spec.ServiceAccountName == "" {
 		if err := r.createJobRunnerRoleIfNotExist(ctx, runner); err != nil {
 			log.Error(err, "failed to create role if serviceAccountName is not specified for the runner in kubernetes container mode")
-			return ctrl.Result{}, err
+			// for now don't requeue
+			return ctrl.Result{Requeue: false}, err
 		}
 	}
 
@@ -574,7 +575,7 @@ func mutatePod(pod *corev1.Pod, token string) *corev1.Pod {
 }
 
 func (r *RunnerReconciler) createJobRunnerRoleIfNotExist(ctx context.Context, runner v1alpha1.Runner) error {
-	var role v1beta1.Role
+	var role rbacv1.Role
 
 	roleNamespacedName := types.NamespacedName{
 		Name:      "job-runner",
@@ -611,7 +612,7 @@ func (r *RunnerReconciler) createJobRunnerRoleIfNotExist(ctx context.Context, ru
 		}
 	}
 
-	var rb v1beta1.RoleBinding
+	var rb rbacv1.RoleBinding
 
 	rbNamespacedName := types.NamespacedName{
 		Name:      "job-runner-rb",
@@ -633,16 +634,12 @@ func (r *RunnerReconciler) createJobRunnerRoleIfNotExist(ctx context.Context, ru
 }
 
 func (r *RunnerReconciler) createDefaultRunnerRole(ctx context.Context, runner v1alpha1.Runner, namespacedName types.NamespacedName) error {
-	role := v1beta1.Role{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Role",
-			APIVersion: "rbac.authorization.k8s.io/v1",
-		},
+	role := rbacv1.Role{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespacedName.Namespace,
 			Name:      namespacedName.Name,
 		},
-		Rules: []v1beta1.PolicyRule{
+		Rules: []rbacv1.PolicyRule{
 			{
 				APIGroups: []string{""},
 				Resources: []string{"pods"},
@@ -687,23 +684,19 @@ func (r *RunnerReconciler) createDefaultRunnerServiceAccount(ctx context.Context
 }
 
 func (r *RunnerReconciler) createDefaultRunnerRoleBinding(ctx context.Context, runner v1alpha1.Runner, roleBindingNamespacedName, roleNamespacedName, serviceAccountNamespacedName types.NamespacedName) error {
-	rb := v1beta1.RoleBinding{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "RoleBinding",
-			APIVersion: "rbac.authorization.k8s.io/v1",
-		},
+	rb := rbacv1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      roleBindingNamespacedName.Name,
 			Namespace: roleBindingNamespacedName.Namespace,
 		},
-		Subjects: []v1beta1.Subject{
+		Subjects: []rbacv1.Subject{
 			{
 				Kind:      "ServiceAccount",
 				Name:      serviceAccountNamespacedName.Name,
 				Namespace: serviceAccountNamespacedName.Namespace,
 			},
 		},
-		RoleRef: v1beta1.RoleRef{
+		RoleRef: rbacv1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
 			Kind:     "Role",
 			Name:     roleNamespacedName.Name,
