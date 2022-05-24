@@ -80,6 +80,11 @@ type RunnerReconciler struct {
 // +kubebuilder:rbac:groups=actions.summerwind.dev,resources=runners/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=pods/finalizers,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=core,resources=pods/exec;rolebindings,verbs=get;create
+// +kubebuilder:rbac:groups=core,resources=pods/log;rolebindings,verbs=get;list;watch
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch;create;delete
+// +kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=get;list;watch;create;delete
+// +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;create;delete
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 
 func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -277,7 +282,7 @@ func (r *RunnerReconciler) processRunnerDeletion(runner v1alpha1.Runner, ctx con
 
 func (r *RunnerReconciler) processRunnerCreation(ctx context.Context, runner v1alpha1.Runner, log logr.Logger) (reconcile.Result, error) {
 	if runner.Spec.ContainerMode == "kubernetes" && runner.Spec.ServiceAccountName == "" {
-		if err := r.createJobRunnerRoleIfNotExist(ctx, runner); err != nil {
+		if err := r.createJobRunnerRoleIfNotExist(ctx, &runner); err != nil {
 			log.Error(err, "failed to create role if serviceAccountName is not specified for the runner in kubernetes container mode")
 			// for now don't requeue
 			return ctrl.Result{Requeue: false}, err
@@ -574,7 +579,7 @@ func mutatePod(pod *corev1.Pod, token string) *corev1.Pod {
 	return updated
 }
 
-func (r *RunnerReconciler) createJobRunnerRoleIfNotExist(ctx context.Context, runner v1alpha1.Runner) error {
+func (r *RunnerReconciler) createJobRunnerRoleIfNotExist(ctx context.Context, runner *v1alpha1.Runner) error {
 	var role rbacv1.Role
 
 	roleNamespacedName := types.NamespacedName{
@@ -630,10 +635,12 @@ func (r *RunnerReconciler) createJobRunnerRoleIfNotExist(ctx context.Context, ru
 		}
 	}
 
+	runner.Spec.ServiceAccountName = saNamespacedName.Name
+
 	return nil
 }
 
-func (r *RunnerReconciler) createDefaultRunnerRole(ctx context.Context, runner v1alpha1.Runner, namespacedName types.NamespacedName) error {
+func (r *RunnerReconciler) createDefaultRunnerRole(ctx context.Context, runner *v1alpha1.Runner, namespacedName types.NamespacedName) error {
 	role := rbacv1.Role{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespacedName.Namespace,
@@ -666,7 +673,7 @@ func (r *RunnerReconciler) createDefaultRunnerRole(ctx context.Context, runner v
 	return r.Create(ctx, &role)
 }
 
-func (r *RunnerReconciler) createDefaultRunnerServiceAccount(ctx context.Context, runner v1alpha1.Runner, namespacedName types.NamespacedName) error {
+func (r *RunnerReconciler) createDefaultRunnerServiceAccount(ctx context.Context, runner *v1alpha1.Runner, namespacedName types.NamespacedName) error {
 	automountServiceAccountToken := true
 	sa := corev1.ServiceAccount{
 		TypeMeta: metav1.TypeMeta{
@@ -683,7 +690,7 @@ func (r *RunnerReconciler) createDefaultRunnerServiceAccount(ctx context.Context
 	return r.Create(ctx, &sa)
 }
 
-func (r *RunnerReconciler) createDefaultRunnerRoleBinding(ctx context.Context, runner v1alpha1.Runner, roleBindingNamespacedName, roleNamespacedName, serviceAccountNamespacedName types.NamespacedName) error {
+func (r *RunnerReconciler) createDefaultRunnerRoleBinding(ctx context.Context, runner *v1alpha1.Runner, roleBindingNamespacedName, roleNamespacedName, serviceAccountNamespacedName types.NamespacedName) error {
 	rb := rbacv1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      roleBindingNamespacedName.Name,

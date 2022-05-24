@@ -1,4 +1,3 @@
-
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -187,6 +186,15 @@ rules:
   - patch
   - update
 - apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+- apiGroups:
   - coordination.k8s.io
   resources:
   - leases
@@ -240,6 +248,14 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - pods/exec
+  - rolebindings
+  verbs:
+  - create
+  - get
+- apiGroups:
+  - ""
+  resources:
   - pods/finalizers
   verbs:
   - create
@@ -248,4 +264,34 @@ rules:
   - list
   - patch
   - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods/log
+  - rolebindings
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - serviceaccounts
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - rolebindings
+  - roles
+  verbs:
+  - create
+  - delete
+  - get
+  - list
   - watch
