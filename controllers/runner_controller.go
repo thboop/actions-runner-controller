@@ -581,24 +581,66 @@ func (r *RunnerReconciler) createJobRunnerRoleIfNotExist(ctx context.Context, ru
 		Namespace: runner.ObjectMeta.Namespace,
 	}
 
-	err := r.Get(ctx, roleNamespacedName, &role)
-	if err == nil {
-		return nil
+	if err := r.Get(ctx, roleNamespacedName, &role); err != nil {
+		if !kerrors.IsNotFound(err) {
+			// TODO: should we cleanup?
+			return err
+		}
+
+		if err := r.createDefaultRunnerRole(ctx, runner, roleNamespacedName); err != nil {
+			return err
+		}
+
 	}
 
-	if !kerrors.IsNotFound(err) {
-		// TODO(nikola-jokic): Should we return an error here?
-		return err
+	var sa corev1.ServiceAccount
+
+	saNamespacedName := types.NamespacedName{
+		Name:      "job-runner-sa",
+		Namespace: runner.ObjectMeta.Namespace,
 	}
 
-	role = v1beta1.Role{
+	if err := r.Get(ctx, saNamespacedName, &sa); err != nil {
+		if !kerrors.IsNotFound(err) {
+			// TODO: should we cleanup?
+			return err
+		}
+
+		if err := r.createDefaultRunnerServiceAccount(ctx, runner, saNamespacedName); err != nil {
+			return err
+		}
+	}
+
+	var rb v1beta1.RoleBinding
+
+	rbNamespacedName := types.NamespacedName{
+		Name:      "job-runner-rb",
+		Namespace: runner.ObjectMeta.Namespace,
+	}
+
+	if err := r.Get(ctx, rbNamespacedName, &rb); err != nil {
+		if !kerrors.IsNotFound(err) {
+			// TODO: should we cleanup?
+			return err
+		}
+
+		if err := r.createDefaultRunnerRoleBinding(ctx, runner, rbNamespacedName, roleNamespacedName, saNamespacedName); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (r *RunnerReconciler) createDefaultRunnerRole(ctx context.Context, runner v1alpha1.Runner, namespacedName types.NamespacedName) error {
+	role := v1beta1.Role{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Role",
 			APIVersion: "rbac.authorization.k8s.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: roleNamespacedName.Namespace,
-			Name:      roleNamespacedName.Name,
+			Namespace: namespacedName.Namespace,
+			Name:      namespacedName.Name,
 		},
 		Rules: []v1beta1.PolicyRule{
 			{
@@ -624,10 +666,10 @@ func (r *RunnerReconciler) createJobRunnerRoleIfNotExist(ctx context.Context, ru
 		},
 	}
 
-	if err := r.Create(ctx, &role); err != nil {
-		return err
-	}
+	return r.Create(ctx, &role)
+}
 
+func (r *RunnerReconciler) createDefaultRunnerServiceAccount(ctx context.Context, runner v1alpha1.Runner, namespacedName types.NamespacedName) error {
 	automountServiceAccountToken := true
 	sa := corev1.ServiceAccount{
 		TypeMeta: metav1.TypeMeta{
@@ -635,45 +677,40 @@ func (r *RunnerReconciler) createJobRunnerRoleIfNotExist(ctx context.Context, ru
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "job-runner-sa",
+			Name:      namespacedName.Name,
+			Namespace: namespacedName.Namespace,
 		},
 		AutomountServiceAccountToken: &automountServiceAccountToken,
 	}
 
-	if err := r.Create(ctx, &sa); err != nil {
-		// TODO(nikola-jokic): Should we remove role?
-		return err
-	}
+	return r.Create(ctx, &sa)
+}
 
+func (r *RunnerReconciler) createDefaultRunnerRoleBinding(ctx context.Context, runner v1alpha1.Runner, roleBindingNamespacedName, roleNamespacedName, serviceAccountNamespacedName types.NamespacedName) error {
 	rb := v1beta1.RoleBinding{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "RoleBinding",
 			APIVersion: "rbac.authorization.k8s.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "job-runner-rb",
-			Namespace: roleNamespacedName.Namespace,
+			Name:      roleBindingNamespacedName.Name,
+			Namespace: roleBindingNamespacedName.Namespace,
 		},
 		Subjects: []v1beta1.Subject{
 			{
 				Kind:      "ServiceAccount",
-				Name:      sa.ObjectMeta.Name,
-				Namespace: sa.ObjectMeta.Namespace,
+				Name:      serviceAccountNamespacedName.Name,
+				Namespace: serviceAccountNamespacedName.Namespace,
 			},
 		},
 		RoleRef: v1beta1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
 			Kind:     "Role",
-			Name:     role.ObjectMeta.Name,
+			Name:     roleNamespacedName.Name,
 		},
 	}
 
-	if err := r.Create(ctx, &rb); err != nil {
-		// TODO(nikola-jokic): Should we clean up everything
-		return err
-	}
-
-	return nil
+	return r.Create(ctx, &rb)
 }
 
 func addHookEnvs(pod *corev1.Pod) {
