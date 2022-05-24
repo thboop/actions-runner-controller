@@ -28,12 +28,14 @@ import (
 
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/api/rbac/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/actions-runner-controller/actions-runner-controller/api/v1alpha1"
@@ -274,6 +276,13 @@ func (r *RunnerReconciler) processRunnerDeletion(runner v1alpha1.Runner, ctx con
 }
 
 func (r *RunnerReconciler) processRunnerCreation(ctx context.Context, runner v1alpha1.Runner, log logr.Logger) (reconcile.Result, error) {
+	if runner.Spec.ContainerMode == "kubernetes" && runner.Spec.ServiceAccountName == "" {
+		if err := r.createJobRunnerRoleIfNotExist(ctx, runner); err != nil {
+			log.Error(err, "failed to create role if serviceAccountName is not specified for the runner in kubernetes container mode")
+			return ctrl.Result{}, err
+		}
+	}
+
 	if updated, err := r.updateRegistrationToken(ctx, runner); err != nil {
 		return ctrl.Result{RequeueAfter: RetryDelayOnCreateRegistrationError}, nil
 	} else if updated {
@@ -562,6 +571,109 @@ func mutatePod(pod *corev1.Pod, token string) *corev1.Pod {
 	}
 
 	return updated
+}
+
+func (r *RunnerReconciler) createJobRunnerRoleIfNotExist(ctx context.Context, runner v1alpha1.Runner) error {
+	var role v1beta1.Role
+
+	roleNamespacedName := types.NamespacedName{
+		Name:      "job-runner",
+		Namespace: runner.ObjectMeta.Namespace,
+	}
+
+	err := r.Get(ctx, roleNamespacedName, &role)
+	if err == nil {
+		return nil
+	}
+
+	if !kerrors.IsNotFound(err) {
+		// TODO(nikola-jokic): Should we return an error here?
+		return err
+	}
+
+	role = v1beta1.Role{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Role",
+			APIVersion: "rbac.authorization.k8s.io/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: roleNamespacedName.Namespace,
+			Name:      roleNamespacedName.Name,
+		},
+		Rules: []v1beta1.PolicyRule{
+			{
+				APIGroups: []string{""},
+				Resources: []string{"pods"},
+				Verbs:     []string{"get", "list", "create", "delete"},
+			},
+			{
+				APIGroups: []string{""},
+				Resources: []string{"pods/exec"},
+				Verbs:     []string{"get", "create"},
+			},
+			{
+				APIGroups: []string{""},
+				Resources: []string{"pods/log"},
+				Verbs:     []string{"get", "list", "watch"},
+			},
+			{
+				APIGroups: []string{"batch"},
+				Resources: []string{"jobs"},
+				Verbs:     []string{"get", "list", "create", "delete"},
+			},
+		},
+	}
+
+	if err := r.Create(ctx, &role); err != nil {
+		return err
+	}
+
+	automountServiceAccountToken := true
+	sa := corev1.ServiceAccount{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ServiceAccount",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "job-runner-sa",
+		},
+		AutomountServiceAccountToken: &automountServiceAccountToken,
+	}
+
+	if err := r.Create(ctx, &sa); err != nil {
+		// TODO(nikola-jokic): Should we remove role?
+		return err
+	}
+
+	rb := v1beta1.RoleBinding{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "RoleBinding",
+			APIVersion: "rbac.authorization.k8s.io/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "job-runner-rb",
+			Namespace: roleNamespacedName.Namespace,
+		},
+		Subjects: []v1beta1.Subject{
+			{
+				Kind:      "ServiceAccount",
+				Name:      sa.ObjectMeta.Name,
+				Namespace: sa.ObjectMeta.Namespace,
+			},
+		},
+		RoleRef: v1beta1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "Role",
+			Name:     role.ObjectMeta.Name,
+		},
+	}
+
+	if err := r.Create(ctx, &rb); err != nil {
+		// TODO(nikola-jokic): Should we clean up everything
+		return err
+	}
+
+	return nil
 }
 
 func addHookEnvs(pod *corev1.Pod) {
