@@ -5,33 +5,6 @@ metadata:
   name: {{ include "actions-runner-controller.managerRoleName" . }}
 rules:
 - apiGroups:
-  - rbac.authorization.k8s.io
-  resources:
-  - roles
-  - rolebindings
-  verbs:
-  - get
-  - list
-  - create
-  - delete
-- apiGroups:
-  - batch
-  resources:
-  - jobs
-  verbs:
-  - get
-  - list
-  - create
-- apiGroups:
-  - ""
-  resources:
-  - serviceaccounts
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-- apiGroups:
   - actions.summerwind.dev
   resources:
   - horizontalrunnerautoscalers
