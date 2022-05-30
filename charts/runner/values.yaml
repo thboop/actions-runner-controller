@@ -1,0 +1,12 @@
+# Default values for runner.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+runner:
+  name: actions-runner
+  namespace: default
+  hookStorageClass: default
+  hookStorageSize: 5Gi
+  defaultJobContainerImage:
+  image: summerwind/actions-runner:latest
+  repository:

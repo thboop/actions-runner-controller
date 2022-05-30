@@ -1,0 +1,18 @@
+apiVersion: actions.summerwind.dev/v1alpha1
+kind: Runner
+metadata:
+  name: {{ include "runner.name" . }}
+  namespace: {{ include "runner.namespace" . }}
+spec:
+  containerMode: kubernetes
+  ephemeral: false
+  repository: {{ required "runner.repository must be provided" .Values.runner.repository }}
+  image: {{ required "runner image must be provided" .Values.runner.image }}
+  workVolumeClaimTemplate:
+    storageClassName: {{ .Values.runner.hookStorageClass }}
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: {{ .Values.runner.hookStorageSize }}
+
