@@ -3,7 +3,7 @@
 # Declare variables to be passed into your templates.
 
 runner:
-  name: actions-runner
+  name: runner
   namespace: default
   hookStorageClass: default
   hookStorageSize: 5Gi
