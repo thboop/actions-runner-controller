@@ -248,8 +248,3 @@ githubWebhookServer:
     enabled: false
     # minAvailable: 1
     # maxUnavailable: 3
-    #
-runner:
-  hookStorageClass: default
-  hookStorageSize: 5Gi
-  defaultJobContainerImage:
