@@ -284,8 +284,7 @@ func (r *RunnerReconciler) processRunnerCreation(ctx context.Context, runner v1a
 	if runner.Spec.ContainerMode == "kubernetes" && runner.Spec.ServiceAccountName == "" {
 		if err := r.createJobRunnerRoleIfNotExist(ctx, &runner); err != nil {
 			log.Error(err, "failed to create role if serviceAccountName is not specified for the runner in kubernetes container mode")
-			// for now don't requeue
-			return ctrl.Result{Requeue: false}, err
+			return ctrl.Result{RequeueAfter: 15 * time.Second}, err
 		}
 	}
 
@@ -589,7 +588,6 @@ func (r *RunnerReconciler) createJobRunnerRoleIfNotExist(ctx context.Context, ru
 
 	if err := r.Get(ctx, roleNamespacedName, &role); err != nil {
 		if !kerrors.IsNotFound(err) {
-			// TODO: should we cleanup?
 			return err
 		}
 
@@ -608,7 +606,6 @@ func (r *RunnerReconciler) createJobRunnerRoleIfNotExist(ctx context.Context, ru
 
 	if err := r.Get(ctx, saNamespacedName, &sa); err != nil {
 		if !kerrors.IsNotFound(err) {
-			// TODO: should we cleanup?
 			return err
 		}
 
@@ -626,7 +623,6 @@ func (r *RunnerReconciler) createJobRunnerRoleIfNotExist(ctx context.Context, ru
 
 	if err := r.Get(ctx, rbNamespacedName, &rb); err != nil {
 		if !kerrors.IsNotFound(err) {
-			// TODO: should we cleanup?
 			return err
 		}
 
