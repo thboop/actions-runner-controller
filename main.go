@@ -85,6 +85,10 @@ func main() {
 		namespace            string
 		logLevel             string
 
+		runnerHookStorageClass         string
+		runnerHookStorageSize          string
+		runnerDefaultJobContainerImage string
+
 		commonRunnerLabels commaSeparatedStringSlice
 	)
 
@@ -119,6 +123,10 @@ func main() {
 	flag.Var(&commonRunnerLabels, "common-runner-labels", "Runner labels in the K1=V1,K2=V2,... format that are inherited all the runners created by the controller. See https://github.com/actions-runner-controller/actions-runner-controller/issues/321 for more information")
 	flag.StringVar(&namespace, "watch-namespace", "", "The namespace to watch for custom resources. Set to empty for letting it watch for all namespaces.")
 	flag.StringVar(&logLevel, "log-level", logging.LogLevelDebug, `The verbosity of the logging. Valid values are "debug", "info", "warn", "error". Defaults to "debug".`)
+	flag.StringVar(&runnerHookStorageClass, "runner-hook-storage-class", "default", "runner hooks storage class defaults to 'default'")
+	flag.StringVar(&runnerHookStorageSize, "runner-hook-storage-size", "5Gi", "runner hooks storage size defaults to 5Gi")
+	flag.StringVar(&runnerDefaultJobContainerImage, "runner-default-job-container-image", "", "runner default job container image")
+
 	flag.Parse()
 
 	logger := logging.NewLogger(logLevel)
@@ -157,6 +165,10 @@ func main() {
 		// Defaults for self-hosted runner containers
 		RunnerImage:            runnerImage,
 		RunnerImagePullSecrets: runnerImagePullSecrets,
+
+		HookStorageClass:         runnerHookStorageClass,
+		HookStorageSize:          runnerHookStorageSize,
+		DefaultJobContainerImage: runnerDefaultJobContainerImage,
 	}
 
 	if err = runnerReconciler.SetupWithManager(mgr); err != nil {

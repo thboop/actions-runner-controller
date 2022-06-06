@@ -71,6 +71,10 @@ type RunnerReconciler struct {
 	RegistrationRecheckJitter   time.Duration
 
 	UnregistrationRetryDelay time.Duration
+
+	HookStorageClass         string
+	HookStorageSize          string
+	DefaultJobContainerImage string
 }
 
 // +kubebuilder:rbac:groups=actions.summerwind.dev,resources=runners,verbs=get;list;watch;create;update;patch;delete

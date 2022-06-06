@@ -67,6 +67,15 @@ spec:
         {{- if .Values.runnerGithubURL  }}
         - "--runner-github-url={{ .Values.runnerGithubURL }}"
         {{- end }}
+        {{- if .Values.runner.}}
+        - "--runner-hook-storage-class={{ .Values.runner.hookStorageClass }}"
+        {{- end }}
+        {{- if .Values.runner.}}
+        - "--runner-hook-storage-size={{ .Values.runner.hookStorageSize }}"
+        {{- end }}
+        {{- if .Values.runner.}}
+        - "--runner-default-jobContainer-image={{ .Values.runner.defaultJobContainerImage }}"
+        {{- end }}
         command:
         - "/manager"
         env:
@@ -150,7 +159,7 @@ spec:
           name: cert
           readOnly: true
         {{- if .Values.additionalVolumeMounts }}
-          {{- toYaml .Values.additionalVolumeMounts | nindent 8 }} 
+          {{- toYaml .Values.additionalVolumeMounts | nindent 8 }}
         {{- end }}
       {{- if .Values.metrics.proxy.enabled }}
       - args:
