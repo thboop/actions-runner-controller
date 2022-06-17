@@ -195,13 +195,71 @@ func (r *RunnerSetReconciler) newStatefulSet(runnerSet *v1alpha1.RunnerSet) (*ap
 		Spec:       runnerSetWithOverrides.StatefulSetSpec.Template.Spec,
 	}
 
+	if runnerSet.Spec.ContainerMode == "kubernetes" {
+		f := false
+		runnerSet.Spec.DockerEnabled = &f
+		runnerSet.Spec.DockerdWithinRunnerContainer = &f
+	}
+
 	pod, err := newRunnerPod(runnerSet.Name, template, runnerSet.Spec.RunnerConfig, r.RunnerImage, r.RunnerImagePullSecrets, r.DockerImage, r.DockerRegistryMirror, r.GitHubBaseURL)
 	if err != nil {
 		return nil, err
 	}
 
+	if runnerSet.Spec.ContainerMode == "kubernetes" {
+		var runnerContainer *corev1.Container
+		for i := range pod.Spec.Containers {
+			if pod.Spec.Containers[i].Name == containerName {
+				runnerContainer = &pod.Spec.Containers[i]
+			}
+		}
+
+		// remove work volume since it will be provided from runnerSpec.Volumes
+		// if we don't remove it here we would get a duplicate key error, i.e. two volumes named work
+		if isPresent, index := workVolumeMountPresent(pod.Spec.Containers[0].VolumeMounts); isPresent {
+			runnerContainer.VolumeMounts = append(runnerContainer.VolumeMounts[:index], runnerContainer.VolumeMounts[index+1:]...)
+		}
+
+		workDir := runnerSet.Spec.RunnerConfig.WorkDir
+		if workDir == "" {
+			workDir = "/runner/_work"
+		}
+
+		runnerContainer.VolumeMounts = append(runnerContainer.VolumeMounts, runnerSet.Spec.WorkVolumeClaimTemplate.V1VolumeMount(workDir))
+
+		if isPresent, index := workVolumePresent(pod.Spec.Volumes); isPresent {
+			// remove work volume since it will be provided from runnerSpec.Volumes
+			// if we don't remove it here we would get a duplicate key error, i.e. two volumes named work
+			pod.Spec.Volumes = append(pod.Spec.Volumes[:index], pod.Spec.Volumes[index+1:]...)
+		}
+
+		pod.Spec.Volumes = append(pod.Spec.Volumes, runnerSet.Spec.WorkVolumeClaimTemplate.V1Volume())
+
+		pod.Spec.ServiceAccountName = runnerSet.Spec.ServiceAccountName
+
+		overwriteContainerEnv(runnerContainer, "ACTIONS_RUNNER_CONTAINER_HOOKS", defaultRunnerHookPath)
+		overwriteContainerEnv(runnerContainer, "ACTIONS_RUNNER_REQUIRE_JOB_CONTAINER", "true")
+		overwriteContainerEnv(runnerContainer, "ACTIONS_RUNNER_POD_NAME", runnerSet.ObjectMeta.Name)
+		overwriteContainerEnv(runnerContainer, "ACTIONS_RUNNER_JOB_NAMESPACE", runnerSet.ObjectMeta.Namespace)
+
+		overwriteContainerEnv(runnerContainer, "ACTIONS_RUNNER_CLAIM_NAME", runnerSet.ObjectMeta.Name+"-work")
+
+		//isRequireSameNode, err := isRequireSameNode(runner)
+		//if err != nil {
+		//return err
+		//}
+
+		//if isRequireSameNode {
+		//overwriteRunnerEnv(runner, "ACTIONS_RUNNER_REQUIRE_SAME_NODE", "true")
+		//return nil
+		//}
+
+		overwriteContainerEnv(runnerContainer, "ACTIONS_RUNNER_REQUIRE_SAME_NODE", "true")
+	}
+
 	runnerSetWithOverrides.StatefulSetSpec.Template.ObjectMeta = pod.ObjectMeta
 	runnerSetWithOverrides.StatefulSetSpec.Template.Spec = pod.Spec
+
 	// NOTE: Seems like the only supported restart policy for statefulset is "Always"?
 	// I got errosr like the below when tried to use "OnFailure":
 	//   StatefulSet.apps \"example-runnersetpg9rx\" is invalid: [spec.template.metadata.labels: Invalid value: map[string]string{\"runner-template-hash\"
@@ -270,4 +328,14 @@ func (r *RunnerSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&appsv1.StatefulSet{}).
 		Named(name).
 		Complete(r)
+}
+
+func overwriteContainerEnv(c *corev1.Container, key, value string) {
+	for i := range c.Env {
+		if c.Env[i].Name == key {
+			c.Env[i].Value = value
+			return
+		}
+	}
+	c.Env = append(c.Env, corev1.EnvVar{Name: key, Value: value})
 }

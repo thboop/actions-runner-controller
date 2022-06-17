@@ -1028,25 +1028,9 @@ func applyWorkVolumeClaimTemplate(runner *v1alpha1.Runner) error {
 		mountPath = "/runner/_work"
 	}
 
-	runner.Spec.VolumeMounts = append(runner.Spec.VolumeMounts, corev1.VolumeMount{
-		MountPath: mountPath,
-		Name:      "work",
-	})
+	runner.Spec.VolumeMounts = append(runner.Spec.VolumeMounts, runner.Spec.WorkVolumeClaimTemplate.V1VolumeMount(mountPath))
 
-	runner.Spec.Volumes = append(runner.Spec.Volumes, corev1.Volume{
-		Name: "work",
-		VolumeSource: corev1.VolumeSource{
-			Ephemeral: &corev1.EphemeralVolumeSource{
-				VolumeClaimTemplate: &corev1.PersistentVolumeClaimTemplate{
-					Spec: corev1.PersistentVolumeClaimSpec{
-						AccessModes:      runner.Spec.WorkVolumeClaimTemplate.AccessModes,
-						StorageClassName: &runner.Spec.WorkVolumeClaimTemplate.StorageClassName,
-						Resources:        runner.Spec.WorkVolumeClaimTemplate.Resources,
-					},
-				},
-			},
-		},
-	})
+	runner.Spec.Volumes = append(runner.Spec.Volumes, runner.Spec.WorkVolumeClaimTemplate.V1Volume())
 	return nil
 }
 
