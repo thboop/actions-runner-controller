@@ -78,6 +78,7 @@ type RunnerReconciler struct {
 // +kubebuilder:rbac:groups=actions.summerwind.dev,resources=runners/finalizers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=actions.summerwind.dev,resources=runners/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;delete
 // +kubebuilder:rbac:groups=core,resources=pods/finalizers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 
@@ -105,7 +106,6 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 	} else {
 		// Request to remove a runner. DeletionTimestamp was set in the runner - we need to unregister runner
-
 		var pod corev1.Pod
 		if err := r.Get(ctx, req.NamespacedName, &pod); err != nil {
 			if !kerrors.IsNotFound(err) {
@@ -118,6 +118,11 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 		if runner.Spec.ContainerMode == "kubernetes" {
 			if err := r.cleanupRunnerLinkedPods(ctx, &pod, log); err != nil {
+				log.Error(err, "cleanup failed")
+				return ctrl.Result{Requeue: true, RequeueAfter: 30 * time.Second}, nil
+			}
+			if err := r.cleanupRunnerLinkedSecrets(ctx, &pod, log); err != nil {
+				log.Error(err, "cleanup failed")
 				return ctrl.Result{Requeue: true, RequeueAfter: 30 * time.Second}, nil
 			}
 		}
@@ -946,7 +951,7 @@ func (r *RunnerReconciler) cleanupRunnerLinkedPods(ctx context.Context, pod *cor
 				if kerrors.IsNotFound(err) || kerrors.IsGone(err) {
 					return
 				}
-				errs = append(errs, fmt.Errorf("delete pod %s error: %v", p.ObjectMeta.Name, err))
+				errs = append(errs, fmt.Errorf("delete pod %q error: %v", p.ObjectMeta.Name, err))
 			}
 		}()
 	}
@@ -958,6 +963,48 @@ func (r *RunnerReconciler) cleanupRunnerLinkedPods(ctx context.Context, pod *cor
 			log.Error(err, "failed to remove runner-linked pod")
 		}
 		return errors.New("failed to remove some runner linked pods")
+	}
+
+	return nil
+}
+
+func (r *RunnerReconciler) cleanupRunnerLinkedSecrets(ctx context.Context, pod *corev1.Pod, log logr.Logger) error {
+	var runnerLinkedSecretList corev1.SecretList
+	r.List(ctx, &runnerLinkedSecretList, client.MatchingLabels(
+		map[string]string{
+			"runner-pod": pod.ObjectMeta.Name,
+		},
+	))
+
+	var (
+		wg   sync.WaitGroup
+		errs []error
+	)
+	for _, s := range runnerLinkedSecretList.Items {
+		if !s.ObjectMeta.DeletionTimestamp.IsZero() {
+			continue
+		}
+
+		s := s
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := r.Delete(ctx, &s); err != nil {
+				if kerrors.IsNotFound(err) || kerrors.IsGone(err) {
+					return
+				}
+				errs = append(errs, fmt.Errorf("delete secret %q error: %v", s.ObjectMeta.Name, err))
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	if len(errs) > 0 {
+		for _, err := range errs {
+			log.Error(err, "failed to remove runner-linked secret")
+		}
+		return errors.New("failed to remove some runner linked secrets")
 	}
 
 	return nil
