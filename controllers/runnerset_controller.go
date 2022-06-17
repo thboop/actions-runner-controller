@@ -239,7 +239,6 @@ func (r *RunnerSetReconciler) newStatefulSet(runnerSet *v1alpha1.RunnerSet) (*ap
 
 		overwriteContainerEnv(runnerContainer, "ACTIONS_RUNNER_CONTAINER_HOOKS", defaultRunnerHookPath)
 		overwriteContainerEnv(runnerContainer, "ACTIONS_RUNNER_REQUIRE_JOB_CONTAINER", "true")
-		overwriteContainerEnv(runnerContainer, "ACTIONS_RUNNER_POD_NAME", runnerSet.ObjectMeta.Name)
 		overwriteContainerEnv(runnerContainer, "ACTIONS_RUNNER_JOB_NAMESPACE", runnerSet.ObjectMeta.Namespace)
 
 		overwriteContainerEnv(runnerContainer, "ACTIONS_RUNNER_CLAIM_NAME", runnerSet.ObjectMeta.Name+"-work")

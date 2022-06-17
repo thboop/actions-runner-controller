@@ -540,6 +540,8 @@ func mutatePod(pod *corev1.Pod, token string) *corev1.Pod {
 
 	if getRunnerEnv(pod, EnvVarRunnerName) == "" {
 		setRunnerEnv(updated, EnvVarRunnerName, pod.ObjectMeta.Name)
+		setRunnerEnv(updated, "ACTIONS_RUNNER_POD_NAME", pod.ObjectMeta.Name)
+		setRunnerEnv(updated, "ACTIONS_RUNNER_CLAIM_NAME", pod.ObjectMeta.Name+"-work")
 	}
 
 	if getRunnerEnv(pod, EnvVarRunnerToken) == "" {
@@ -552,7 +554,6 @@ func mutatePod(pod *corev1.Pod, token string) *corev1.Pod {
 func addHookEnvs(runner *v1alpha1.Runner) {
 	overwriteRunnerEnv(runner, "ACTIONS_RUNNER_CONTAINER_HOOKS", defaultRunnerHookPath)
 	overwriteRunnerEnv(runner, "ACTIONS_RUNNER_REQUIRE_JOB_CONTAINER", "true")
-	overwriteRunnerEnv(runner, "ACTIONS_RUNNER_POD_NAME", runner.ObjectMeta.Name)
 	overwriteRunnerEnv(runner, "ACTIONS_RUNNER_JOB_NAMESPACE", runner.ObjectMeta.Namespace)
 }
 
@@ -1037,8 +1038,6 @@ func applyWorkVolumeClaimTemplate(runner *v1alpha1.Runner) error {
 // appendRunnerVolumeMountEnvs function appends volume related environment variables
 // needed by the runner when executing in containerMode: kubernetes
 func appendRunnerVolumeMountEnvs(runner *v1alpha1.Runner) error {
-	overwriteRunnerEnv(runner, "ACTIONS_RUNNER_CLAIM_NAME", runner.ObjectMeta.Name+"-work")
-
 	isRequireSameNode, err := isRequireSameNode(runner)
 	if err != nil {
 		return err
