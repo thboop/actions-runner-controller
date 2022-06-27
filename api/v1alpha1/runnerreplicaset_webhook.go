@@ -19,6 +19,7 @@ package v1alpha1
 import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -65,7 +66,7 @@ func (r *RunnerReplicaSet) ValidateDelete() error {
 
 // Validate validates resource spec.
 func (r *RunnerReplicaSet) Validate() error {
-	errList := r.Spec.Template.Spec.Validate()
+	errList := r.Spec.Template.Spec.Validate(field.NewPath("spec", "template", "spec"))
 
 	if len(errList) > 0 {
 		return apierrors.NewInvalid(r.GroupVersionKind().GroupKind(), r.Name, errList)

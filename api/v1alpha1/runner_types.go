@@ -164,7 +164,7 @@ type RunnerPodSpec struct {
 	WorkVolumeClaimTemplate *WorkVolumeClaimTemplate `json:"workVolumeClaimTemplate,omitempty"`
 }
 
-func (rs *RunnerSpec) Validate() field.ErrorList {
+func (rs *RunnerSpec) Validate(rootPath *field.Path) field.ErrorList {
 	var (
 		errList field.ErrorList
 		err     error
@@ -172,17 +172,17 @@ func (rs *RunnerSpec) Validate() field.ErrorList {
 
 	err = rs.validateRepository()
 	if err != nil {
-		errList = append(errList, field.Invalid(field.NewPath("spec", "repository"), rs.Repository, err.Error()))
+		errList = append(errList, field.Invalid(rootPath.Child("repository"), rs.Repository, err.Error()))
 	}
 
 	err = rs.validateWorkVolumeClaimTemplate()
 	if err != nil {
-		errList = append(errList, field.Invalid(field.NewPath("spec", "workVolumeClaimTemplate"), rs.WorkVolumeClaimTemplate, err.Error()))
+		errList = append(errList, field.Invalid(rootPath.Child("workVolumeClaimTemplate"), rs.WorkVolumeClaimTemplate, err.Error()))
 	}
 
 	err = rs.validateIsServiceAccountNameSet()
 	if err != nil {
-		errList = append(errList, field.Invalid(field.NewPath("spec", "serviceAccountName"), rs.ServiceAccountName, err.Error()))
+		errList = append(errList, field.Invalid(rootPath.Child("serviceAccountName"), rs.ServiceAccountName, err.Error()))
 	}
 
 	return errList
