@@ -184,6 +184,7 @@ func (rs *RunnerSpec) Validate() field.ErrorList {
 	if err != nil {
 		errList = append(errList, field.Invalid(field.NewPath("spec", "serviceAccountName"), rs.ServiceAccountName, err.Error()))
 	}
+
 	return errList
 }
 
