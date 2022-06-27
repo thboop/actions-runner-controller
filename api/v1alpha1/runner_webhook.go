@@ -19,7 +19,6 @@ package v1alpha1
 import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -66,25 +65,7 @@ func (r *Runner) ValidateDelete() error {
 
 // Validate validates resource spec.
 func (r *Runner) Validate() error {
-	var (
-		errList field.ErrorList
-		err     error
-	)
-
-	err = r.Spec.ValidateRepository()
-	if err != nil {
-		errList = append(errList, field.Invalid(field.NewPath("spec", "repository"), r.Spec.Repository, err.Error()))
-	}
-
-	err = r.Spec.ValidateWorkVolumeClaimTemplate()
-	if err != nil {
-		errList = append(errList, field.Invalid(field.NewPath("spec", "workVolumeClaimTemplate"), r.Spec.WorkVolumeClaimTemplate, err.Error()))
-	}
-
-	err = r.Spec.ValidateIsServiceAccountNameSet()
-	if err != nil {
-		errList = append(errList, field.Invalid(field.NewPath("spec", "serviceAccountName"), r.Spec.ServiceAccountName, err.Error()))
-	}
+	errList := r.Spec.Validate()
 
 	if len(errList) > 0 {
 		return apierrors.NewInvalid(r.GroupVersionKind().GroupKind(), r.Name, errList)

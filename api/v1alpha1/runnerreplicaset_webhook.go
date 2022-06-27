@@ -19,7 +19,6 @@ package v1alpha1
 import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -66,25 +65,7 @@ func (r *RunnerReplicaSet) ValidateDelete() error {
 
 // Validate validates resource spec.
 func (r *RunnerReplicaSet) Validate() error {
-	var (
-		errList field.ErrorList
-		err     error
-	)
-
-	err = r.Spec.Template.Spec.ValidateRepository()
-	if err != nil {
-		errList = append(errList, field.Invalid(field.NewPath("spec", "template", "spec", "repository"), r.Spec.Template.Spec.Repository, err.Error()))
-	}
-
-	err = r.Spec.Template.Spec.ValidateWorkVolumeClaimTemplate()
-	if err != nil {
-		errList = append(errList, field.Invalid(field.NewPath("spec", "template", "spec", "workVolumeClaimTemplate"), r.Spec.Template.Spec.WorkVolumeClaimTemplate, err.Error()))
-	}
-
-	err = r.Spec.Template.Spec.ValidateIsServiceAccountNameSet()
-	if err != nil {
-		errList = append(errList, field.Invalid(field.NewPath("spec", "template", "spec", "serviceAccountName"), r.Spec.Template.Spec.ServiceAccountName, err.Error()))
-	}
+	errList := r.Spec.Template.Spec.Validate()
 
 	if len(errList) > 0 {
 		return apierrors.NewInvalid(r.GroupVersionKind().GroupKind(), r.Name, errList)
